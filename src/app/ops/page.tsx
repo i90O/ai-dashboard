@@ -28,10 +28,10 @@ interface Agent {
 
 interface Step {
   id: string;
-  seq: number;
+  seq?: number;
   kind: string;
   status: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   result?: Record<string, unknown>;
   started_at?: string;
   completed_at?: string;

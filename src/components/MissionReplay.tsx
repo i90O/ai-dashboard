@@ -5,10 +5,10 @@ import { format } from 'date-fns';
 
 interface Step {
   id: string;
-  seq: number;
+  seq?: number;
   kind: string;
   status: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   result?: Record<string, unknown>;
   started_at?: string;
   completed_at?: string;
@@ -21,7 +21,7 @@ interface Mission {
   created_by: string;
   created_at: string;
   completed_at?: string;
-  steps: Step[];
+  steps?: Step[];
 }
 
 interface Props {
@@ -32,11 +32,17 @@ interface Props {
 export function MissionReplay({ mission, onClose }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const [playing, setPlaying] = useState(false);
+  
+  const steps = mission.steps || [];
+  const step = steps[currentStep];
+  const progress = steps.length > 0 
+    ? ((currentStep + 1) / steps.length) * 100 
+    : 0;
 
   // Auto-advance when playing
   useEffect(() => {
     if (!playing) return;
-    if (currentStep >= mission.steps.length - 1) {
+    if (currentStep >= steps.length - 1) {
       setPlaying(false);
       return;
     }
@@ -46,12 +52,7 @@ export function MissionReplay({ mission, onClose }: Props) {
     }, 1500);
     
     return () => clearTimeout(timer);
-  }, [playing, currentStep, mission.steps.length]);
-
-  const step = mission.steps[currentStep];
-  const progress = mission.steps.length > 0 
-    ? ((currentStep + 1) / mission.steps.length) * 100 
-    : 0;
+  }, [playing, currentStep, steps.length]);
 
   const getStepIcon = (kind: string) => {
     const icons: Record<string, string> = {
@@ -144,7 +145,7 @@ export function MissionReplay({ mission, onClose }: Props) {
         {/* Timeline */}
         <div className="px-6 pb-4">
           <div className="flex gap-1 justify-center">
-            {mission.steps.map((s, i) => (
+            {steps.map((s, i) => (
               <button
                 key={s.id}
                 onClick={() => { setCurrentStep(i); setPlaying(false); }}
@@ -184,15 +185,15 @@ export function MissionReplay({ mission, onClose }: Props) {
             {playing ? '⏸️ Pause' : '▶️ Play'}
           </button>
           <button
-            onClick={() => setCurrentStep(s => Math.min(mission.steps.length - 1, s + 1))}
-            disabled={currentStep >= mission.steps.length - 1}
+            onClick={() => setCurrentStep(s => Math.min(steps.length - 1, s + 1))}
+            disabled={currentStep >= steps.length - 1}
             className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-sm"
           >
             Next ▶️
           </button>
           <button
-            onClick={() => setCurrentStep(mission.steps.length - 1)}
-            disabled={currentStep >= mission.steps.length - 1}
+            onClick={() => setCurrentStep(steps.length - 1)}
+            disabled={currentStep >= steps.length - 1}
             className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-sm"
           >
             End ⏭️
