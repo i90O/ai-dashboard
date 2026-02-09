@@ -104,6 +104,21 @@ CREATE TRIGGER memory_files_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
 
+-- Commands queue table (for bot polling)
+CREATE TABLE IF NOT EXISTS commands (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  bot_id TEXT NOT NULL,
+  message TEXT NOT NULL,
+  session_key TEXT DEFAULT 'main',
+  status TEXT DEFAULT 'pending' NOT NULL,
+  result TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_commands_bot_status ON commands(bot_id, status);
+CREATE INDEX idx_commands_created ON commands(created_at DESC);
+
 -- Enable Row Level Security (optional, for multi-tenant)
 -- ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;

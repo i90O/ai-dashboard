@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, MC_TOKEN } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const source = searchParams.get('source');
-  const limit = parseInt(searchParams.get('limit') || '50');
+  const type = searchParams.get('type');
 
   let query = supabase
-    .from('activities')
+    .from('memory_files')
     .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(limit);
+    .order('updated_at', { ascending: false });
 
   if (source) query = query.eq('source', source);
+  if (type) query = query.eq('type', type);
 
   const { data, error } = await query;
 
@@ -20,33 +20,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ activities: data || [] });
+  return NextResponse.json({ files: data || [] });
 }
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('Authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  
-  if (token !== MC_TOKEN) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const body = await request.json();
-  const { type, description, status, source, metadata, timestamp } = body;
+  const { name, content, path, type = 'daily', source } = body;
 
-  if (!type || !description || !source) {
+  if (!name || !path || !source) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
   const { data, error } = await supabase
-    .from('activities')
-    .insert({
+    .from('memory_files')
+    .upsert({
+      name,
+      content,
+      path,
       type,
-      description,
-      status: status || 'success',
       source,
-      metadata,
-      timestamp: timestamp || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'path,source',
     })
     .select()
     .single();
@@ -55,5 +50,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ file: data }, { status: 201 });
 }
