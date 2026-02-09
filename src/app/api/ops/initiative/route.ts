@@ -96,3 +96,34 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ initiative: data, queued: true });
 }
+
+// PATCH - update initiative status
+export async function PATCH(request: NextRequest) {
+  const supabase = getSupabase();
+  const body = await request.json();
+  const { id, status, blocked_reason, generated_proposal, proposal_id } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (status) updates.status = status;
+  if (status === 'generating' || status === 'submitted' || status === 'failed') {
+    updates.processed_at = new Date().toISOString();
+  }
+  if (blocked_reason) updates.blocked_reason = blocked_reason;
+  if (generated_proposal) updates.generated_proposal = generated_proposal;
+  if (proposal_id) updates.proposal_id = proposal_id;
+
+  const { data, error } = await supabase
+    .from('ops_initiative_queue')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ initiative: data, updated: true });
+}

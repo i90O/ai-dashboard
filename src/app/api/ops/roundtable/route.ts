@@ -98,3 +98,40 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ conversation: data, created: true });
 }
+
+// PATCH - update conversation status
+export async function PATCH(request: NextRequest) {
+  const supabase = getSupabase();
+  const body = await request.json();
+
+  const { id, status, history, memories_extracted, action_items } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (status) {
+    updates.status = status;
+    if (status === 'running') {
+      updates.started_at = new Date().toISOString();
+    }
+    if (status === 'completed' || status === 'failed') {
+      updates.completed_at = new Date().toISOString();
+    }
+  }
+  if (history) updates.history = history;
+  if (memories_extracted) updates.memories_extracted = memories_extracted;
+  if (action_items) updates.action_items = action_items;
+
+  const { data, error } = await supabase
+    .from('ops_roundtable_queue')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ conversation: data, updated: true });
+}
