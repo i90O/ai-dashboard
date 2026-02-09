@@ -57,14 +57,14 @@ export async function POST(req: NextRequest) {
     
     if (!gateResult.ok) {
       const { data: rejected } = await supabase.from('ops_mission_proposals').insert({
-        agent_id, title, description, proposed_steps, source: source || 'api', source_trace_id,
+        agent_id, title, description, proposed_steps, source: source || 'human', source_trace_id,
         status: 'rejected', rejection_reason: gateResult.reason, reviewed_at: new Date().toISOString()
       }).select().single();
       return NextResponse.json({ success: false, rejected: true, reason: gateResult.reason, proposal_id: rejected?.id });
     }
     
     const { data: proposal, error } = await supabase.from('ops_mission_proposals').insert({
-      agent_id, title, description, proposed_steps, source: source || 'api', source_trace_id, status: 'pending'
+      agent_id, title, description, proposed_steps, source: source || 'human', source_trace_id, status: 'pending'
     }).select().single();
     
     if (error) throw error;
