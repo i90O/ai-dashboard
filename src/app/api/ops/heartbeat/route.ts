@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase';
+import { createProposalAndMaybeAutoApprove } from '@/lib/proposal-service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -95,50 +96,16 @@ async function evaluateTriggers(budgetMs: number = 4000): Promise<any[]> {
     const result = await checker(supabase, trigger.conditions || {}, trigger.action_config || {});
     
     if (result.fired) {
-      // Create proposal through standard pipeline
+      // Use shared proposal service (single entry point)
       const targetAgent = trigger.action_config?.target_agent || 'xiaobei';
-      const proposedSteps = result.proposal.proposed_steps || [];
       
-      // Check auto-approve policy
-      const { data: autoApprovePolicy } = await supabase.from('ops_policy')
-        .select('value').eq('key', 'auto_approve').single();
-      const allowedKinds = autoApprovePolicy?.value?.allowed_step_kinds || [];
-      const stepKinds = proposedSteps.map((s: any) => s.kind);
-      const shouldAutoApprove = autoApprovePolicy?.value?.enabled && 
-        stepKinds.every((k: string) => allowedKinds.includes(k));
-      
-      const { data: proposal } = await supabase.from('ops_mission_proposals').insert({
+      const proposalResult = await createProposalAndMaybeAutoApprove(supabase, {
         agent_id: targetAgent,
         title: result.proposal.title,
-        proposed_steps: proposedSteps,
+        proposed_steps: result.proposal.proposed_steps || [],
         source: 'trigger',
-        source_trace_id: `trigger:${trigger.id}:${Date.now()}`,
-        status: shouldAutoApprove ? 'accepted' : 'pending'
-      }).select().single();
-      
-      let missionId = null;
-      
-      // Auto-approve: create mission + steps immediately
-      if (shouldAutoApprove && proposal) {
-        const { data: mission } = await supabase.from('ops_missions').insert({
-          title: result.proposal.title,
-          created_by: targetAgent,
-          proposal_id: proposal.id,
-          status: 'approved'
-        }).select().single();
-        
-        if (mission && proposedSteps.length) {
-          const steps = proposedSteps.map((s: any, i: number) => ({
-            mission_id: mission.id,
-            seq: i + 1,
-            kind: s.kind,
-            payload: s.payload || {},
-            status: 'queued'
-          }));
-          await supabase.from('ops_mission_steps').insert(steps);
-          missionId = mission.id;
-        }
-      }
+        source_trace_id: `trigger:${trigger.id}:${Date.now()}`
+      });
       
       // Update trigger stats
       await supabase.from('ops_trigger_rules').update({ 
@@ -150,9 +117,9 @@ async function evaluateTriggers(budgetMs: number = 4000): Promise<any[]> {
         trigger_id: trigger.id, 
         name: trigger.name, 
         event: trigger.trigger_event, 
-        proposal_id: proposal?.id,
-        mission_id: missionId,
-        auto_approved: shouldAutoApprove
+        proposal_id: proposalResult.proposal_id,
+        mission_id: proposalResult.mission_id,
+        auto_approved: proposalResult.auto_approved
       });
     }
   }
@@ -232,8 +199,8 @@ async function processReactionQueue(budgetMs: number = 3000): Promise<number> {
   for (const reaction of reactions) {
     if (Date.now() - startTime > budgetMs) break;
     
-    // Create proposal through standard pipeline (respects Cap Gates)
-    await supabase.from('ops_mission_proposals').insert({
+    // Use shared proposal service (single entry point)
+    await createProposalAndMaybeAutoApprove(supabase, {
       agent_id: reaction.target_agent, 
       title: `Reaction: ${reaction.reaction_type}`, 
       source: 'reaction',
