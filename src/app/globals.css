@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Status indicators */
+.status-online {
+  @apply bg-emerald-500;
+}
+
+.status-offline {
+  @apply bg-slate-500;
+}
+
+.status-busy {
+  @apply bg-amber-500;
+}
+
+/* Bot color badges */
+.bot-badge-xiaobei {
+  @apply bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+}
+
+.bot-badge-clawd2 {
+  @apply bg-indigo-500/20 text-indigo-400 border border-indigo-500/30;
+}
+
+.bot-badge-clawd3 {
+  @apply bg-amber-500/20 text-amber-400 border border-amber-500/30;
+}

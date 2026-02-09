@@ -1,0 +1,5 @@
+{
+  "build_command": "npm run build",
+  "output_dir": ".next",
+  "serverless": false
+}
