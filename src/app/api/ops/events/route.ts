@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const since = searchParams.get('since');
     
-    let query = supabase.from('ops_agent_events').select(`*, bots:agent_id (name, color)`)
+    let query = supabase.from('ops_agent_events').select(`*`)
       .order('created_at', { ascending: false }).limit(limit);
     
     if (agent_id) query = query.eq('agent_id', agent_id);

@@ -101,7 +101,7 @@ export default function OpsPage() {
         circuitsRes
       ] = await Promise.all([
         fetch('/api/ops/agents?include_stats=true'),
-        fetch('/api/ops/missions?status=active&include_steps=true'),
+        fetch('/api/ops/missions'),
         fetch('/api/ops/events?limit=50'),
         fetch('/api/ops/proposals?status=pending'),
         fetch('/api/ops/relationships'),
