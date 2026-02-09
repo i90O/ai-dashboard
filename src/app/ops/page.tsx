@@ -76,6 +76,14 @@ interface Relationship {
   relationship_status: string;
 }
 
+interface ConversationTurn {
+  turn?: number;
+  speaker: string;
+  dialogue?: string;
+  content?: string;
+  timestamp?: string;
+}
+
 interface Conversation {
   id: string;
   format: string;
@@ -83,6 +91,7 @@ interface Conversation {
   participants: string[];
   status: string;
   created_at: string;
+  history?: ConversationTurn[];
 }
 
 interface CircuitBreaker {
@@ -102,6 +111,7 @@ export default function OpsPage() {
   const [circuits, setCircuits] = useState<CircuitBreaker[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [expandedConversation, setExpandedConversation] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -410,14 +420,38 @@ export default function OpsPage() {
                 <div className="space-y-2">
                   {conversations.map(c => (
                     <div key={c.id} className="bg-gray-700 rounded p-3">
-                      <div className="flex justify-between items-start">
+                      <div 
+                        className="flex justify-between items-start cursor-pointer"
+                        onClick={() => setExpandedConversation(expandedConversation === c.id ? null : c.id)}
+                      >
                         <div>
                           <span className={`px-2 py-0.5 rounded text-xs mr-2 ${statusColors[c.status]}`}>{c.format}</span>
                           <span className="font-medium">{c.topic}</span>
+                          {c.history && c.history.length > 0 && (
+                            <span className="text-xs text-gray-400 ml-2">({c.history.length} turns)</span>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-400">{format(new Date(c.created_at), 'MMM d HH:mm')}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">{format(new Date(c.created_at), 'MMM d HH:mm')}</span>
+                          <span className="text-gray-400">{expandedConversation === c.id ? '▼' : '▶'}</span>
+                        </div>
                       </div>
                       <p className="text-sm text-gray-400 mt-1">Participants: {c.participants.join(', ')}</p>
+                      
+                      {/* Expanded History */}
+                      {expandedConversation === c.id && c.history && c.history.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-600 space-y-2 max-h-96 overflow-y-auto">
+                          {c.history.map((turn, idx) => (
+                            <div key={idx} className="bg-gray-800 rounded p-2 text-sm">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-green-400">{turn.speaker}</span>
+                                {turn.turn !== undefined && <span className="text-xs text-gray-500">#{turn.turn}</span>}
+                              </div>
+                              <p className="text-gray-300 whitespace-pre-wrap">{turn.dialogue || turn.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
