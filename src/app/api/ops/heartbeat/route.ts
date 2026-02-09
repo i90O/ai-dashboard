@@ -97,13 +97,48 @@ async function evaluateTriggers(budgetMs: number = 4000): Promise<any[]> {
     if (result.fired) {
       // Create proposal through standard pipeline
       const targetAgent = trigger.action_config?.target_agent || 'xiaobei';
+      const proposedSteps = result.proposal.proposed_steps || [];
+      
+      // Check auto-approve policy
+      const { data: autoApprovePolicy } = await supabase.from('ops_policy')
+        .select('value').eq('key', 'auto_approve').single();
+      const allowedKinds = autoApprovePolicy?.value?.allowed_step_kinds || [];
+      const stepKinds = proposedSteps.map((s: any) => s.kind);
+      const shouldAutoApprove = autoApprovePolicy?.value?.enabled && 
+        stepKinds.every((k: string) => allowedKinds.includes(k));
+      
       const { data: proposal } = await supabase.from('ops_mission_proposals').insert({
         agent_id: targetAgent,
         title: result.proposal.title,
-        proposed_steps: result.proposal.proposed_steps,
+        proposed_steps: proposedSteps,
         source: 'trigger',
-        source_trace_id: `trigger:${trigger.id}:${Date.now()}`
+        source_trace_id: `trigger:${trigger.id}:${Date.now()}`,
+        status: shouldAutoApprove ? 'accepted' : 'pending'
       }).select().single();
+      
+      let missionId = null;
+      
+      // Auto-approve: create mission + steps immediately
+      if (shouldAutoApprove && proposal) {
+        const { data: mission } = await supabase.from('ops_missions').insert({
+          title: result.proposal.title,
+          created_by: targetAgent,
+          proposal_id: proposal.id,
+          status: 'approved'
+        }).select().single();
+        
+        if (mission && proposedSteps.length) {
+          const steps = proposedSteps.map((s: any, i: number) => ({
+            mission_id: mission.id,
+            seq: i + 1,
+            kind: s.kind,
+            payload: s.payload || {},
+            status: 'queued'
+          }));
+          await supabase.from('ops_mission_steps').insert(steps);
+          missionId = mission.id;
+        }
+      }
       
       // Update trigger stats
       await supabase.from('ops_trigger_rules').update({ 
@@ -115,7 +150,9 @@ async function evaluateTriggers(budgetMs: number = 4000): Promise<any[]> {
         trigger_id: trigger.id, 
         name: trigger.name, 
         event: trigger.trigger_event, 
-        proposal_id: proposal?.id 
+        proposal_id: proposal?.id,
+        mission_id: missionId,
+        auto_approved: shouldAutoApprove
       });
     }
   }
