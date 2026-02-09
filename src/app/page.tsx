@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, LayoutGrid, Calendar, Search, Bot, Terminal, FileText, Menu, X } from 'lucide-react';
+import { Activity, LayoutGrid, Calendar, Search, Bot, Terminal, FileText, Menu, X, Settings2 } from 'lucide-react';
+import Link from 'next/link';
 import ActivityFeed from '@/components/ActivityFeed';
 import KanbanBoard from '@/components/KanbanBoard';
 import CalendarView from '@/components/CalendarView';
@@ -98,6 +99,17 @@ export default function Dashboard() {
               </li>
             ))}
           </ul>
+          
+          {/* Ops Center Link */}
+          <div className="mt-6 pt-4 border-t border-dark-700">
+            <Link
+              href="/ops"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-dark-300 hover:bg-dark-700 hover:text-emerald-400 transition-colors"
+            >
+              <Settings2 className="w-5 h-5" />
+              Ops Center
+            </Link>
+          </div>
         </nav>
 
         {/* Command Center Button */}

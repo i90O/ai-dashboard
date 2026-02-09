@@ -1,0 +1,25 @@
+[Unit]
+Description=Ops Roundtable Worker - Agent conversations
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/ai-dashboard
+ExecStart=/usr/bin/node workers/roundtable-worker.mjs
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ops-roundtable-worker
+
+EnvironmentFile=/opt/ai-dashboard/.env
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ai-dashboard/logs
+
+[Install]
+WantedBy=multi-user.target

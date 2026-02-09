@@ -1,9 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Hardcode for Vercel deployment
-const SUPABASE_URL = 'https://hlumwrbidlxepmcvsswe.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhsdW13cmJpZGx4ZXBtY3Zzc3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MDgwMTAsImV4cCI6MjA4NjE4NDAxMH0.LIieVIPxtf2piYo06ZalwvWXdqiFTXDbHeA0TPzs0Fw';
+let supabaseInstance: SupabaseClient | null = null;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export function getSupabase(): SupabaseClient {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!
+    );
+  }
+  return supabaseInstance;
+}
 
-export const MC_TOKEN = 'xiaobei-mc-2026';
+// Backwards compatibility exports for existing API routes
+export const supabase = {
+  from: (table: string) => getSupabase().from(table),
+  rpc: (fn: string, params?: any) => getSupabase().rpc(fn, params),
+};
+
+export const MC_TOKEN = process.env.MC_TOKEN || 'xiaobei-mc-2026';
