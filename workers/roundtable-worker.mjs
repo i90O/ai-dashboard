@@ -154,10 +154,38 @@ async function selectNextSpeaker(participants, lastSpeaker, speakCounts) {
   return participants[0];
 }
 
-async function generateTurn(speaker, history, topic, format) {
+// Interaction type based on affinity (per article Ch4)
+async function getInteractionType(speaker, lastSpeaker) {
+  if (!lastSpeaker) return 'neutral';
+  
+  const affinity = await getAffinity(speaker, lastSpeaker);
+  const tension = 1 - affinity;
+  
+  if (tension > 0.6) {
+    // High tension → 20% chance of direct challenge
+    return Math.random() < 0.2 ? 'challenge' : 'critical';
+  } else if (tension < 0.3) {
+    // Low tension → 40% chance of supportive
+    return Math.random() < 0.4 ? 'supportive' : 'agreement';
+  }
+  return 'neutral';
+}
+
+async function generateTurn(speaker, history, topic, format, lastSpeaker = null) {
   const historyText = history.map(h => `${h.speaker}: ${h.dialogue}`).join('\n');
   const systemPrompt = await buildAgentPrompt(speaker);
-  const userPrompt = `Topic: ${topic}\n\nConversation so far:\n${historyText || '(starting)'}\n\nYour turn to speak. Keep it under ${MAX_TURN_LENGTH} characters. Be natural and conversational.`;
+  
+  // Get interaction type based on affinity
+  const interactionType = await getInteractionType(speaker, lastSpeaker);
+  const interactionHint = {
+    'challenge': 'Be direct and challenge the last point made. Disagree constructively.',
+    'critical': 'Be analytical and point out potential issues or gaps.',
+    'supportive': 'Build on what was said and offer encouragement.',
+    'agreement': 'Agree with the direction and add value.',
+    'neutral': ''
+  }[interactionType];
+  
+  const userPrompt = `Topic: ${topic}\n\nConversation so far:\n${historyText || '(starting)'}\n\n${interactionHint ? `Tone: ${interactionHint}\n\n` : ''}Your turn to speak. Keep it under ${MAX_TURN_LENGTH} characters. Be natural and conversational.`;
   
   let text = null;
   
@@ -287,7 +315,7 @@ async function orchestrateConversation(session) {
     const speaker = await selectNextSpeaker(participants, lastSpeaker, speakCounts);
     speakCounts[speaker] = (speakCounts[speaker] || 0) + 1;
     
-    const dialogue = await generateTurn(speaker, history, session.topic, format);
+    const dialogue = await generateTurn(speaker, history, session.topic, format, lastSpeaker);
     history.push({ turn: i, speaker, dialogue, timestamp: new Date().toISOString() });
     
     console.log(`  [${i + 1}/${numTurns}] ${speaker}: ${dialogue.substring(0, 50)}...`);
