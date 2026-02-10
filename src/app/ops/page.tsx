@@ -9,6 +9,10 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 const VirtualizedEventList = dynamic(() => import('@/components/VirtualizedEventList'), { ssr: false });
 const PixelOffice = dynamic(() => import('@/components/PixelOffice'), { ssr: false });
 const MissionReplay = dynamic(() => import('@/components/MissionReplay'), { ssr: false });
+const AgentCard = dynamic(() => import('@/components/AgentCard'), { ssr: false });
+const TaskKanban = dynamic(() => import('@/components/TaskKanban'), { ssr: false });
+const ConversationPanel = dynamic(() => import('@/components/ConversationPanel'), { ssr: false });
+const HeartbeatIndicator = dynamic(() => import('@/components/HeartbeatIndicator'), { ssr: false });
 
 // Types
 interface Agent {
@@ -250,99 +254,154 @@ export default function OpsPage() {
         {/* Content */}
         <div className="max-w-7xl mx-auto p-6">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Pixel Office */}
-              <div className="lg:col-span-2">
-                <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">Office unavailable</div>}>
-                  <PixelOffice 
-                    agents={agents} 
-                    activeConversation={activeConversation}
-                    recentTasks={missions.slice(0, 10).map(m => ({
-                      id: m.id,
-                      title: m.title,
-                      agent: m.created_by,
-                      status: m.status as 'running' | 'succeeded' | 'failed',
-                      completedAt: m.completed_at
-                    }))}
+            <div className="space-y-6">
+              {/* Top row: Heartbeat + Agent Cards */}
+              <div className="flex flex-wrap items-start gap-4">
+                {/* Heartbeat indicator */}
+                <ErrorBoundary fallback={<div>心跳不可用</div>}>
+                  <HeartbeatIndicator 
+                    isHealthy={circuits.every(cb => cb.state === 'closed')}
+                    workersOnline={circuits.filter(cb => cb.state === 'closed').length}
+                    totalWorkers={circuits.length || 3}
+                    lastHeartbeat={events[0]?.created_at}
                   />
                 </ErrorBoundary>
-              </div>
-
-              {/* Pending Proposals */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h2 className="font-semibold mb-3 flex items-center gap-2">
-                  📋 Pending Proposals
-                  {proposals.length > 0 && (
-                    <span className="bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full">{proposals.length}</span>
-                  )}
-                </h2>
-                {proposals.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No pending proposals</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {proposals.map(p => (
-                      <div key={p.id} className="bg-gray-700 rounded p-2 text-sm">
-                        <p className="font-medium">{p.title}</p>
-                        <p className="text-xs text-gray-400">{agents.find(a => a.id === p.agent_id)?.display_name || p.agent_id}</p>
-                        <div className="flex gap-1 mt-1">
-                          <button onClick={() => approveProposal(p.id)} className="px-2 py-0.5 bg-green-600 hover:bg-green-700 rounded text-xs">✓</button>
-                          <button onClick={() => rejectProposal(p.id)} className="px-2 py-0.5 bg-red-600 hover:bg-red-700 rounded text-xs">✗</button>
-                        </div>
-                      </div>
-                    ))}
+                
+                {/* Quick stats */}
+                <div className="flex gap-3 ml-auto">
+                  <div className="bg-gray-800 rounded-lg px-4 py-2 text-center">
+                    <p className="text-2xl font-bold text-green-400">{missions.filter(m => m.status === 'succeeded').length}</p>
+                    <p className="text-xs text-gray-500">完成任务</p>
                   </div>
-                )}
+                  <div className="bg-gray-800 rounded-lg px-4 py-2 text-center">
+                    <p className="text-2xl font-bold text-blue-400">{conversations.length}</p>
+                    <p className="text-xs text-gray-500">团队对话</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg px-4 py-2 text-center">
+                    <p className="text-2xl font-bold text-purple-400">{events.length}</p>
+                    <p className="text-xs text-gray-500">活动事件</p>
+                  </div>
+                </div>
               </div>
 
-              {/* Active Missions */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h2 className="font-semibold mb-3">🎯 Missions ({missions.length})</h2>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {missions.slice(0, 10).map(m => (
-                    <div 
-                      key={m.id} 
-                      className="bg-gray-700 rounded p-2 text-sm cursor-pointer hover:bg-gray-600"
-                      onClick={() => m.steps?.length ? setSelectedMission(m) : null}
-                    >
-                      <div className="flex justify-between items-start">
-                        <p className="font-medium">{m.title}</p>
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${statusColors[m.status]}`}>{m.status}</span>
-                      </div>
-                      {m.steps && m.steps.length > 0 && (
-                        <div className="flex gap-0.5 mt-1">
-                          {m.steps.map(s => (
-                            <div key={s.id} className={`w-4 h-1.5 rounded ${statusColors[s.status]}`} title={`${s.kind}: ${s.status}`} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
+              {/* Agent Cards Grid */}
+              <div>
+                <h2 className="font-bold text-lg mb-3 flex items-center gap-2">
+                  🤖 AI团队 <span className="text-xs bg-gray-700 px-2 py-0.5 rounded-full text-gray-400">{agents.length}个成员</span>
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {agents.map(agent => (
+                    <ErrorBoundary key={agent.id} fallback={<div className="bg-gray-800 rounded-lg p-2">Agent不可用</div>}>
+                      <AgentCard 
+                        agent={{
+                          ...agent,
+                          status: activeConversation?.participants.includes(agent.id) ? 'talking' : 
+                                  missions.some(m => m.status === 'running' && m.created_by === agent.id) ? 'working' : 'online'
+                        }}
+                        isActive={activeConversation?.participants.includes(agent.id)}
+                      />
+                    </ErrorBoundary>
                   ))}
                 </div>
               </div>
 
-              {/* Event Stream (Virtualized) */}
-              <div className="bg-gray-800 rounded-lg p-4 lg:col-span-2">
-                <h2 className="font-semibold mb-3">📡 Event Stream ({events.length})</h2>
-                <ErrorBoundary fallback={<div className="text-gray-500">Events unavailable</div>}>
-                  <VirtualizedEventList events={events} height={300} />
+              {/* Main content: Office + Proposals side by side */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Pixel Office */}
+                <div className="lg:col-span-2">
+                  <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">Office unavailable</div>}>
+                    <PixelOffice 
+                      agents={agents} 
+                      activeConversation={activeConversation}
+                      recentTasks={missions.slice(0, 10).map(m => ({
+                        id: m.id,
+                        title: m.title,
+                        agent: m.created_by,
+                        status: m.status as 'running' | 'succeeded' | 'failed',
+                        completedAt: m.completed_at
+                      }))}
+                    />
+                  </ErrorBoundary>
+                </div>
+
+                {/* Pending Proposals */}
+                <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-700">
+                  <h2 className="font-bold mb-3 flex items-center gap-2">
+                    📋 待审提案
+                    {proposals.length > 0 && (
+                      <span className="bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full animate-pulse">{proposals.length}</span>
+                    )}
+                  </h2>
+                  {proposals.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-4xl mb-2">✨</p>
+                      <p className="text-gray-500 text-sm">暂无待审提案</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {proposals.map(p => (
+                        <div key={p.id} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                          <p className="font-medium text-sm">{p.title}</p>
+                          <p className="text-xs text-gray-400 mt-1">{agents.find(a => a.id === p.agent_id)?.display_name || p.agent_id}</p>
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={() => approveProposal(p.id)} className="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-xs font-medium transition-colors">✓ 批准</button>
+                            <button onClick={() => rejectProposal(p.id)} className="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded-lg text-xs font-medium transition-colors">✗ 拒绝</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Task Kanban */}
+              <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">看板不可用</div>}>
+                <TaskKanban tasks={missions.map(m => ({
+                  id: m.id,
+                  title: m.title,
+                  status: m.status as 'queued' | 'running' | 'succeeded' | 'failed',
+                  agent: m.created_by,
+                  priority: m.priority,
+                  created_at: m.created_at,
+                  completed_at: m.completed_at
+                }))} />
+              </ErrorBoundary>
+
+              {/* Conversation Panel */}
+              <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">对话面板不可用</div>}>
+                <ConversationPanel conversations={conversations} />
+              </ErrorBoundary>
+
+              {/* Activity Feed */}
+              <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-700">
+                <h2 className="font-bold mb-3 flex items-center gap-2">
+                  📡 实时活动流
+                  <span className="text-xs bg-gray-700 px-2 py-0.5 rounded-full text-gray-400">{events.length}条</span>
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse ml-auto" title="实时更新中" />
+                </h2>
+                <ErrorBoundary fallback={<div>活动流不可用</div>}>
+                  <VirtualizedEventList events={events} />
                 </ErrorBoundary>
               </div>
 
-              {/* Relationships */}
-              <div className="bg-gray-800 rounded-lg p-4 lg:col-span-3">
-                <h2 className="font-semibold mb-3">🤝 Agent Relationships ({relationships.length})</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              {/* Relationships at bottom */}
+              <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-700">
+                <h2 className="font-bold mb-3 flex items-center gap-2">
+                  🤝 经纪人关系 
+                  <span className="text-xs bg-gray-700 px-2 py-0.5 rounded-full text-gray-400">{relationships.length}对</span>
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   {relationships.map(r => (
-                    <div key={`${r.agent_a}-${r.agent_b}`} className="bg-gray-700 rounded p-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-xs">{r.agent_a_name} ↔ {r.agent_b_name}</span>
-                        <span className={r.affinity >= 0.7 ? 'text-green-400' : r.affinity >= 0.5 ? 'text-blue-400' : r.affinity >= 0.3 ? 'text-yellow-400' : 'text-red-400'}>
+                    <div key={`${r.agent_a}-${r.agent_b}`} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-medium">{r.agent_a_name} ↔ {r.agent_b_name}</span>
+                        <span className={`text-sm font-bold ${r.affinity >= 0.7 ? 'text-green-400' : r.affinity >= 0.5 ? 'text-blue-400' : r.affinity >= 0.3 ? 'text-yellow-400' : 'text-red-400'}`}>
                           {(r.affinity * 100).toFixed(0)}%
                         </span>
                       </div>
-                      <div className="w-full bg-gray-600 rounded-full h-1.5 mt-1">
+                      <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
-                          className={`h-1.5 rounded-full ${r.affinity >= 0.7 ? 'bg-green-500' : r.affinity >= 0.5 ? 'bg-blue-500' : r.affinity >= 0.3 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                          className={`h-2 rounded-full transition-all duration-500 ${r.affinity >= 0.7 ? 'bg-green-500' : r.affinity >= 0.5 ? 'bg-blue-500' : r.affinity >= 0.3 ? 'bg-yellow-500' : 'bg-red-500'}`}
                           style={{ width: `${r.affinity * 100}%` }}
                         />
                       </div>
