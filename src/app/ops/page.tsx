@@ -254,7 +254,17 @@ export default function OpsPage() {
               {/* Pixel Office */}
               <div className="lg:col-span-2">
                 <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">Office unavailable</div>}>
-                  <PixelOffice agents={agents} activeConversation={activeConversation} />
+                  <PixelOffice 
+                    agents={agents} 
+                    activeConversation={activeConversation}
+                    recentTasks={missions.slice(0, 10).map(m => ({
+                      id: m.id,
+                      title: m.title,
+                      agent: m.created_by,
+                      status: m.status as 'running' | 'succeeded' | 'failed',
+                      completedAt: m.completed_at
+                    }))}
+                  />
                 </ErrorBoundary>
               </div>
 

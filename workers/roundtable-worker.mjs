@@ -8,8 +8,14 @@ const API_BASE = process.env.API_BASE || 'https://ai-dashboard-phi-three.vercel.
 const API_KEY = process.env.API_KEY || 'xiaobei-mc-2026';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const WORKER_ID = process.env.WORKER_ID || `roundtable-${Date.now()}`;
 const POLL_INTERVAL_MS = 30000; // 30 seconds
 const MAX_TURN_LENGTH = 120;
+
+// Circuit breaker state (Ch8)
+const FAILURE_THRESHOLD = 3;
+let consecutiveFailures = 0;
+let circuitOpen = false;
 
 // Determine which LLM to use
 let llmProvider = null;
@@ -341,7 +347,40 @@ async function orchestrateConversation(session) {
   return history;
 }
 
+// Circuit breaker: auto-disable after consecutive failures (Ch8)
+async function tripCircuitBreaker(reason) {
+  console.error(`\n⚡ CIRCUIT BREAKER TRIPPED: ${reason}`);
+  circuitOpen = true;
+  
+  try {
+    await api('/api/ops/policy', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        key: 'roundtable_worker',
+        value: { enabled: false, disabled_at: new Date().toISOString(), reason }
+      })
+    });
+    
+    await api('/api/ops/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        agent_id: 'system',
+        kind: 'circuit_breaker_tripped',
+        title: `Roundtable Worker disabled after ${FAILURE_THRESHOLD} failures`,
+        summary: reason,
+        tags: ['alert', 'circuit_breaker', 'roundtable_worker']
+      })
+    });
+    
+    console.log('Worker self-disabled. Check dashboard for details.');
+  } catch (e) {
+    console.error('Failed to trip circuit breaker:', e.message);
+  }
+}
+
 async function poll() {
+  if (circuitOpen) return;
+  
   try {
     // Get pending conversations
     const { conversations } = await api('/api/ops/roundtable?status=pending&limit=1');
@@ -395,9 +434,16 @@ async function poll() {
       });
       
       console.log(`Conversation ${session.id} completed\n`);
+      consecutiveFailures = 0; // Reset on success
     }
   } catch (error) {
     console.error(`Poll error: ${error.message}`);
+    consecutiveFailures++;
+    console.warn(`  Consecutive failures: ${consecutiveFailures}/${FAILURE_THRESHOLD}`);
+    
+    if (consecutiveFailures >= FAILURE_THRESHOLD) {
+      await tripCircuitBreaker(`${consecutiveFailures} consecutive errors: ${error.message}`);
+    }
   }
 }
 

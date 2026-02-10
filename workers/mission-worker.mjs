@@ -8,12 +8,20 @@
 const API_BASE = process.env.API_BASE || 'https://ai-dashboard-phi-three.vercel.app';
 const API_KEY = process.env.API_KEY || 'xiaobei-mc-2026';
 const AGENT_ID = process.env.AGENT_ID || 'xiaobei';
+const WORKER_ID = process.env.WORKER_ID || `mission-${Date.now()}`;
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '10000'); // 10 seconds
 
+// Circuit breaker state (Ch8)
+const FAILURE_THRESHOLD = 3;
+let consecutiveFailures = 0;
+let circuitOpen = false;
+
 console.log(`[${new Date().toISOString()}] Mission Worker started`);
+console.log(`  Worker ID: ${WORKER_ID}`);
 console.log(`  API: ${API_BASE}`);
 console.log(`  Agent: ${AGENT_ID}`);
 console.log(`  Poll interval: ${POLL_INTERVAL_MS}ms`);
+console.log(`  Circuit breaker: ${FAILURE_THRESHOLD} failures to trip`);
 
 // Helper to call API
 async function api(path, options = {}) {
@@ -103,18 +111,72 @@ async function executeStep(step) {
   }
 }
 
+// Circuit breaker: auto-disable after consecutive failures (Ch8)
+async function tripCircuitBreaker(reason) {
+  console.error(`\n⚡ CIRCUIT BREAKER TRIPPED: ${reason}`);
+  circuitOpen = true;
+  
+  try {
+    // Disable worker in policy
+    await api('/api/ops/policy', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        key: 'mission_worker',
+        value: { enabled: false, disabled_at: new Date().toISOString(), reason }
+      })
+    });
+    
+    // Fire alert event
+    await api('/api/ops/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        agent_id: 'system',
+        kind: 'circuit_breaker_tripped',
+        title: `Mission Worker disabled after ${FAILURE_THRESHOLD} failures`,
+        summary: reason,
+        tags: ['alert', 'circuit_breaker', 'mission_worker']
+      })
+    });
+    
+    console.log('Worker self-disabled. Check dashboard for details.');
+  } catch (e) {
+    console.error('Failed to trip circuit breaker:', e.message);
+  }
+}
+
 // Main loop
 async function poll() {
+  // Circuit breaker check
+  if (circuitOpen) {
+    return; // Stop polling if circuit is open
+  }
+  
   try {
     // GET auto-claims the step (sets status to running)
     const { step, message } = await api(`/api/ops/steps?agent_id=${AGENT_ID}`);
     
     if (step) {
-      await executeStep(step);
+      const success = await executeStep(step);
+      
+      if (success) {
+        consecutiveFailures = 0; // Reset on success
+      } else {
+        consecutiveFailures++;
+        console.warn(`  Consecutive failures: ${consecutiveFailures}/${FAILURE_THRESHOLD}`);
+        
+        if (consecutiveFailures >= FAILURE_THRESHOLD) {
+          await tripCircuitBreaker(`${consecutiveFailures} consecutive step failures`);
+        }
+      }
     }
   } catch (error) {
     if (!error.message.includes('No queued steps')) {
       console.error(`Poll error: ${error.message}`);
+      consecutiveFailures++;
+      
+      if (consecutiveFailures >= FAILURE_THRESHOLD) {
+        await tripCircuitBreaker(`${consecutiveFailures} consecutive poll errors: ${error.message}`);
+      }
     }
   }
 }
