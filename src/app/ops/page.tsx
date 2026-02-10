@@ -10,6 +10,8 @@ const VirtualizedEventList = dynamic(() => import('@/components/VirtualizedEvent
 const PixelOffice = dynamic(() => import('@/components/PixelOffice'), { ssr: false });
 const MissionReplay = dynamic(() => import('@/components/MissionReplay'), { ssr: false });
 const TremorDashboard = dynamic(() => import('@/components/TremorDashboard'), { ssr: false });
+const Office3D = dynamic(() => import('@/components/3d/Office3D'), { ssr: false });
+const TeamActivityPanel = dynamic(() => import('@/components/3d/TeamActivityPanel'), { ssr: false });
 
 // Types
 interface Agent {
@@ -102,7 +104,8 @@ interface CircuitBreaker {
 }
 
 export default function OpsPage() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'conversations' | 'memory' | 'health'>('overview');
+  const [activeTab, setActiveTab] = useState<'office' | 'overview' | 'agents' | 'conversations' | 'memory' | 'health'>('office');
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -229,6 +232,7 @@ export default function OpsPage() {
         <div className="border-b border-gray-800 px-6">
           <div className="max-w-7xl mx-auto flex gap-1">
             {[
+              { id: 'office', label: '🏭 3D Office' },
               { id: 'overview', label: '📊 Overview' },
               { id: 'agents', label: '🤖 Agents' },
               { id: 'conversations', label: '💬 Conversations' },
@@ -250,6 +254,44 @@ export default function OpsPage() {
 
         {/* Content */}
         <div className="max-w-7xl mx-auto p-6">
+          {activeTab === 'office' && (
+            <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">3D Office unavailable</div>}>
+              <div className="h-[70vh] rounded-lg overflow-hidden border border-gray-700">
+                <Office3D 
+                  agents={[
+                    {
+                      id: 'xiaobei',
+                      name: '小北',
+                      color: '#14b8a6',
+                      position: [-4, 0, 1.5] as [number, number, number],
+                      status: conversations.some(c => c.status === 'running' && c.participants.includes('xiaobei')) ? 'talking' : 'idle' as const,
+                      thought: events.find(e => e.agent_id === 'xiaobei')?.title || '待命中...'
+                    },
+                    {
+                      id: 'clawd2',
+                      name: 'Clawd2',
+                      color: '#f59e0b',
+                      position: [0, 0, 1.5] as [number, number, number],
+                      status: conversations.some(c => c.status === 'running' && c.participants.includes('clawd2')) ? 'talking' : 'idle' as const,
+                      thought: events.find(e => e.agent_id === 'clawd2')?.title || '准备中...'
+                    },
+                    {
+                      id: 'clawd3',
+                      name: 'Clawd3',
+                      color: '#8b5cf6',
+                      position: [4, 0, 1.5] as [number, number, number],
+                      status: conversations.some(c => c.status === 'running' && c.participants.includes('clawd3')) ? 'talking' : 'idle' as const,
+                      thought: events.find(e => e.agent_id === 'clawd3')?.title || '待命...'
+                    }
+                  ]}
+                  selectedAgentId={selectedAgentId || undefined}
+                  onAgentSelect={(id) => setSelectedAgentId(id)}
+                />
+              </div>
+              <TeamActivityPanel />
+            </ErrorBoundary>
+          )}
+
           {activeTab === 'overview' && (
             <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">Dashboard unavailable</div>}>
               <TremorDashboard 
