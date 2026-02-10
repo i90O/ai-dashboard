@@ -9,6 +9,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 const VirtualizedEventList = dynamic(() => import('@/components/VirtualizedEventList'), { ssr: false });
 const PixelOffice = dynamic(() => import('@/components/PixelOffice'), { ssr: false });
 const MissionReplay = dynamic(() => import('@/components/MissionReplay'), { ssr: false });
+const TremorDashboard = dynamic(() => import('@/components/TremorDashboard'), { ssr: false });
 
 // Types
 interface Agent {
@@ -250,107 +251,16 @@ export default function OpsPage() {
         {/* Content */}
         <div className="max-w-7xl mx-auto p-6">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Pixel Office */}
-              <div className="lg:col-span-2">
-                <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">Office unavailable</div>}>
-                  <PixelOffice 
-                    agents={agents} 
-                    activeConversation={activeConversation}
-                    recentTasks={missions.slice(0, 10).map(m => ({
-                      id: m.id,
-                      title: m.title,
-                      agent: m.created_by,
-                      status: m.status as 'running' | 'succeeded' | 'failed',
-                      completedAt: m.completed_at
-                    }))}
-                  />
-                </ErrorBoundary>
-              </div>
-
-              {/* Pending Proposals */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h2 className="font-semibold mb-3 flex items-center gap-2">
-                  📋 Pending Proposals
-                  {proposals.length > 0 && (
-                    <span className="bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full">{proposals.length}</span>
-                  )}
-                </h2>
-                {proposals.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No pending proposals</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {proposals.map(p => (
-                      <div key={p.id} className="bg-gray-700 rounded p-2 text-sm">
-                        <p className="font-medium">{p.title}</p>
-                        <p className="text-xs text-gray-400">{agents.find(a => a.id === p.agent_id)?.display_name || p.agent_id}</p>
-                        <div className="flex gap-1 mt-1">
-                          <button onClick={() => approveProposal(p.id)} className="px-2 py-0.5 bg-green-600 hover:bg-green-700 rounded text-xs">✓</button>
-                          <button onClick={() => rejectProposal(p.id)} className="px-2 py-0.5 bg-red-600 hover:bg-red-700 rounded text-xs">✗</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Active Missions */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h2 className="font-semibold mb-3">🎯 Missions ({missions.length})</h2>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {missions.slice(0, 10).map(m => (
-                    <div 
-                      key={m.id} 
-                      className="bg-gray-700 rounded p-2 text-sm cursor-pointer hover:bg-gray-600"
-                      onClick={() => m.steps?.length ? setSelectedMission(m) : null}
-                    >
-                      <div className="flex justify-between items-start">
-                        <p className="font-medium">{m.title}</p>
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${statusColors[m.status]}`}>{m.status}</span>
-                      </div>
-                      {m.steps && m.steps.length > 0 && (
-                        <div className="flex gap-0.5 mt-1">
-                          {m.steps.map(s => (
-                            <div key={s.id} className={`w-4 h-1.5 rounded ${statusColors[s.status]}`} title={`${s.kind}: ${s.status}`} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Event Stream (Virtualized) */}
-              <div className="bg-gray-800 rounded-lg p-4 lg:col-span-2">
-                <h2 className="font-semibold mb-3">📡 Event Stream ({events.length})</h2>
-                <ErrorBoundary fallback={<div className="text-gray-500">Events unavailable</div>}>
-                  <VirtualizedEventList events={events} height={300} />
-                </ErrorBoundary>
-              </div>
-
-              {/* Relationships */}
-              <div className="bg-gray-800 rounded-lg p-4 lg:col-span-3">
-                <h2 className="font-semibold mb-3">🤝 Agent Relationships ({relationships.length})</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                  {relationships.map(r => (
-                    <div key={`${r.agent_a}-${r.agent_b}`} className="bg-gray-700 rounded p-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-xs">{r.agent_a_name} ↔ {r.agent_b_name}</span>
-                        <span className={r.affinity >= 0.7 ? 'text-green-400' : r.affinity >= 0.5 ? 'text-blue-400' : r.affinity >= 0.3 ? 'text-yellow-400' : 'text-red-400'}>
-                          {(r.affinity * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-600 rounded-full h-1.5 mt-1">
-                        <div
-                          className={`h-1.5 rounded-full ${r.affinity >= 0.7 ? 'bg-green-500' : r.affinity >= 0.5 ? 'bg-blue-500' : r.affinity >= 0.3 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                          style={{ width: `${r.affinity * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ErrorBoundary fallback={<div className="bg-gray-800 rounded-lg p-4">Dashboard unavailable</div>}>
+              <TremorDashboard 
+                agents={agents}
+                missions={missions}
+                events={events}
+                relationships={relationships}
+                conversations={conversations}
+                systemHealthy={circuits.every(c => c.state === 'closed')}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'agents' && (
